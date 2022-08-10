@@ -9,6 +9,7 @@ import edu.berkeley.cs186.database.memory.BufferManager;
 import edu.berkeley.cs186.database.memory.Page;
 import edu.berkeley.cs186.database.table.RecordId;
 
+import javax.xml.crypto.Data;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -146,24 +147,45 @@ class LeafNode extends BPlusNode {
     // See BPlusNode.get.
     @Override
     public LeafNode get(DataBox key) {
-        // TODO(proj2): implement
-
-        return null;
+        return this;
     }
 
     // See BPlusNode.getLeftmostLeaf.
     @Override
     public LeafNode getLeftmostLeaf() {
-        // TODO(proj2): implement
-
-        return null;
+        return this;
     }
 
     // See BPlusNode.put.
     @Override
     public Optional<Pair<DataBox, Long>> put(DataBox key, RecordId rid) {
-        // TODO(proj2): implement
-
+        int ind = keys.size();
+        for (int i = keys.size() - 1; i >= 0; --i) {
+            if (key.equals(keys.get(i))) {
+                throw new BPlusTreeException("Key already present. Duplicate keys not allowed!");
+            }
+            if (key.compareTo(keys.get(i)) < 0) {
+                ind = i;
+            }
+        }
+        keys.add(ind, key);
+        rids.add(ind, rid);
+        if (keys.size() > 2 * metadata.getOrder()) {
+            List<DataBox> rightNodeKeys = new ArrayList<>();
+            List<RecordId> rightNodeRids = new ArrayList<>();
+            int x = keys.size();
+            if (x > x / 2) {
+                rightNodeKeys = new ArrayList<>(keys.subList(x / 2, x));
+                rightNodeRids = new ArrayList<>(rids.subList(x / 2, x));
+                keys.subList(x / 2, x).clear();
+                rids.subList(x / 2, x).clear();
+            }
+            LeafNode rightNode = new LeafNode(metadata, bufferManager, rightNodeKeys, rightNodeRids, rightSibling, treeContext);
+            rightSibling = Optional.of(rightNode.getPage().getPageNum());
+            sync();
+            return Optional.of(new Pair<>(rightNode.keys.get(0), rightNode.getPage().getPageNum()));
+        }
+        sync();
         return Optional.empty();
     }
 
@@ -179,9 +201,19 @@ class LeafNode extends BPlusNode {
     // See BPlusNode.remove.
     @Override
     public void remove(DataBox key) {
-        // TODO(proj2): implement
+        for (int i = 0; i < keys.size(); ++i) {
+            if (key.equals(keys.get(i))) {
+                keys.remove(i);
+                rids.remove(i);
+                sync();
+                break;
+            }
+        }
+    }
 
-        return;
+    @Override
+    public LeafNode greaterOrEqual(DataBox key) {
+        return this;
     }
 
     // Iterators ///////////////////////////////////////////////////////////////

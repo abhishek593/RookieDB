@@ -213,6 +213,11 @@ abstract class BPlusNode {
      */
     public abstract void remove(DataBox key);
 
+    /**
+     * Returns the leftmost leaf node which has a key greater or equal to the input key.
+     */
+    public abstract LeafNode greaterOrEqual(DataBox key);
+
     // Helpers /////////////////////////////////////////////////////////////////
     /** Get the page on which this node is persisted. */
     abstract Page getPage();

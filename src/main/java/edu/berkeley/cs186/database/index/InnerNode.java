@@ -9,6 +9,7 @@ import edu.berkeley.cs186.database.memory.BufferManager;
 import edu.berkeley.cs186.database.memory.Page;
 import edu.berkeley.cs186.database.table.RecordId;
 
+import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -80,25 +81,60 @@ class InnerNode extends BPlusNode {
     // See BPlusNode.get.
     @Override
     public LeafNode get(DataBox key) {
-        // TODO(proj2): implement
-
-        return null;
+        if (children.isEmpty()) {
+            return null;
+        }
+        for (int i = 0; i < keys.size(); ++i) {
+            if (key.compareTo(keys.get(i)) < 0) {
+                return getChild(i).get(key);
+            }
+        }
+        return getChild(children.size() - 1).get(key);
     }
 
     // See BPlusNode.getLeftmostLeaf.
     @Override
     public LeafNode getLeftmostLeaf() {
         assert(children.size() > 0);
-        // TODO(proj2): implement
-
-        return null;
+        return getChild(0).getLeftmostLeaf();
     }
 
     // See BPlusNode.put.
     @Override
     public Optional<Pair<DataBox, Long>> put(DataBox key, RecordId rid) {
-        // TODO(proj2): implement
+        int ind = keys.size();
+        for (int i = keys.size() - 1; i >= 0; --i) {
+            if (key.compareTo(keys.get(i)) < 0) {
+                ind = i;
+            }
+        }
 
+        Optional<Pair<DataBox, Long>> op = getChild(ind).put(key, rid);
+        if (op.isPresent()) {
+            Pair<DataBox, Long> p = op.get();
+            keys.add(ind, p.getFirst());
+            children.add(ind + 1, p.getSecond());
+        }
+
+        assert (keys.size() + 1 == children.size());
+
+        if (keys.size() > 2 * metadata.getOrder()) {
+            List<DataBox> rightNodeKeys = new ArrayList<>();
+            List<Long> rightNodeChildren = new ArrayList<>();
+            int x = keys.size();
+            DataBox splitKey = keys.get(x / 2);
+            if (x > x / 2) {
+                rightNodeKeys = new ArrayList<>(keys.subList(x / 2 + 1, x));
+                rightNodeChildren = new ArrayList<>(children.subList(x / 2 + 1, x + 1));
+                keys.subList(x / 2, x).clear();
+                children.subList(x / 2 + 1, x + 1).clear();
+            }
+            InnerNode rightNode = new InnerNode(metadata, bufferManager, rightNodeKeys, rightNodeChildren, treeContext);
+            sync();
+            return Optional.of(new Pair<>(splitKey, rightNode.getPage().getPageNum()));
+        }
+
+        sync();
         return Optional.empty();
     }
 
@@ -114,9 +150,25 @@ class InnerNode extends BPlusNode {
     // See BPlusNode.remove.
     @Override
     public void remove(DataBox key) {
-        // TODO(proj2): implement
+        if (key.compareTo(keys.get(keys.size() - 1)) >= 0) {
+            getChild(children.size() - 1).remove(key);
+        }else{
+            for (int i = keys.size() - 1; i >= 0; --i) {
+                if (key.compareTo(keys.get(i)) < 0) {
+                    getChild(i).remove(key);
+                }
+            }
+        }
+    }
 
-        return;
+    @Override
+    public LeafNode greaterOrEqual(DataBox key) {
+        for (int i = keys.size() - 1; i >= 0; --i) {
+            if (key.compareTo(keys.get(i)) >= 0) {
+                return getChild(i + 1).greaterOrEqual(key);
+            }
+        }
+        return getChild(0).greaterOrEqual(key);
     }
 
     // Helpers /////////////////////////////////////////////////////////////////
